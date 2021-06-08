@@ -354,6 +354,25 @@ func NewListRequest(baseUrl, allocation string, path string, auth_token string) 
 	return req, nil
 }
 
+// NewUploadRequestWithMethod create a http reqeust of upload
+func NewUploadRequestWithMethod(baseURL, allocation string, body io.Reader, method string) (*http.Request, error) {
+	url := fmt.Sprintf("%s%s%s", baseURL, UPLOAD_ENDPOINT, allocation)
+	var req *http.Request
+	var err error
+
+	req, err = http.NewRequest(method, url, body)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := setClientInfoWithSign(req, allocation); err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func NewUploadRequest(baseUrl, allocation string, body io.Reader, update bool) (*http.Request, error) {
 	url := fmt.Sprintf("%s%s%s", baseUrl, UPLOAD_ENDPOINT, allocation)
 	var req *http.Request
@@ -457,9 +476,8 @@ func MakeSCRestAPICall(scAddress string, relativePath string, params map[string]
 			q.Add(k, v)
 		}
 		urlObj.RawQuery = q.Encode()
-		client := &http.Client{Transport: transport}
 
-		response, err := client.Get(urlObj.String())
+		response, err := util.NewHTTPNetContext().Get(urlObj.String(), &http.Client{Transport: transport})
 		if err != nil {
 			continue
 		} else {
@@ -504,7 +522,7 @@ func MakeSCRestAPICall(scAddress string, relativePath string, params map[string]
 func HttpDo(ctx context.Context, cncl context.CancelFunc, req *http.Request, f func(*http.Response, error) error) error {
 	// Run the HTTP request in a goroutine and pass the response to f.
 	c := make(chan error, 1)
-	go func() { c <- f(Client.Do(req.WithContext(ctx))) }()
+	go func() { c <- f(util.NewHTTPNetContext().Do(req.WithContext(ctx), Client.Do)) }()
 	// TODO: Check cncl context required in any case
 	// defer cncl()
 	select {
